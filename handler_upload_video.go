@@ -1,12 +1,15 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"mime"
 	"net/http"
 	"os"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/google/uuid"
 )
@@ -47,7 +50,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	}
 
 	fmt.Println("uploading video", videoID, "by user", userID)
-	r.ParseMultipartForm(maxMemoryThumbnail)
+	r.ParseMultipartForm(maxMemoryVideos)
 
 	file, header, err := r.FormFile("video")
 	if err != nil {
@@ -81,4 +84,30 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 
 	tempFile.Seek(0, io.SeekStart)
 
+	randomBytes := make([]byte, 32)
+	_, err = rand.Read(randomBytes)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error creating file key", err)
+		return
+	}
+	fileKey := hex.EncodeToString(randomBytes)
+	_, err = cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
+		Bucket:      &cfg.s3Bucket,
+		Key:         &fileKey,
+		Body:        tempFile,
+		ContentType: &mediaType,
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error saving object in bucket", err)
+		return
+	}
+
+	newURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", cfg.s3Bucket, cfg.s3Region, fileKey)
+	video.VideoURL = &newURL
+	if err := cfg.db.UpdateVideo(video); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error updating video", err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, video)
 }
