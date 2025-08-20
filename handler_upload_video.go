@@ -82,6 +82,12 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	aspectRatio, err := getVideoAspectRatio(tempFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error getting aspect ratio", err)
+		return
+	}
+
 	tempFile.Seek(0, io.SeekStart)
 
 	randomBytes := make([]byte, 32)
@@ -90,7 +96,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, "Error creating file key", err)
 		return
 	}
-	fileKey := hex.EncodeToString(randomBytes)
+	fileKey := aspectRatio + "/" + hex.EncodeToString(randomBytes)
 	_, err = cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
 		Bucket:      &cfg.s3Bucket,
 		Key:         &fileKey,
