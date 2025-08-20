@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const maxMemory = 10 << 20
+const maxMemoryThumbnail = 10 << 20
 
 func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Request) {
 	videoIDString := r.PathValue("videoID")
@@ -46,7 +46,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 
 	fmt.Println("uploading thumbnail for video", videoID, "by user", userID)
-	r.ParseMultipartForm(maxMemory)
+	r.ParseMultipartForm(maxMemoryThumbnail)
 
 	file, header, err := r.FormFile("thumbnail")
 	if err != nil {
