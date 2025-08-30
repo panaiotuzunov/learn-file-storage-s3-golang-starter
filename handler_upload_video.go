@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
@@ -126,7 +128,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	newURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", cfg.s3Bucket, cfg.s3Region, fileKey)
+	newURL := cfg.s3Bucket + "," + fileKey
 	video.VideoURL = &newURL
 	if err := cfg.db.UpdateVideo(video); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error updating video", err)
@@ -179,4 +181,16 @@ func processVideoForFastStart(filePath string) (string, error) {
 		return "", err
 	}
 	return outputPath, nil
+}
+
+func generatePresignedURL(s3Client *s3.Client, bucket, key string, expireTime time.Duration) (string, error) {
+	presignClient := s3.NewPresignClient(s3Client)
+	presignReq, err := presignClient.PresignGetObject(context.Background(), &s3.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	}, s3.WithPresignExpires(expireTime))
+	if err != nil {
+		return "", err
+	}
+	return presignReq.URL, nil
 }
